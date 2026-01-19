@@ -1,3 +1,17 @@
+export interface Account {
+  id: string;
+  name: string;
+  type: 'checking' | 'savings' | 'credit' | 'cash';
+  color: string;
+}
+
+export interface RecurringSchedule {
+  type: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  startDate: Date;
+  customDays?: number; // For "every X days"
+  dayOfMonth?: number; // For monthly (e.g., 1st of month)
+}
+
 export interface Transaction {
   id: string;
   type: 'expense' | 'income';
@@ -6,6 +20,12 @@ export interface Transaction {
   description: string;
   date: Date;
   verified: boolean;
+  accountId?: string;
+  isRecurring?: boolean;
+  recurringSchedule?: RecurringSchedule;
+  isForecasted?: boolean; // True if this is a future projected transaction
+  recurringParentId?: string; // Links to the parent recurring transaction
+  estimatedAmount?: number; // For variable expenses like electric
 }
 
 export interface Category {
@@ -24,7 +44,20 @@ export interface MonthlyData {
   savings: number;
   isClosed: boolean;
   transactions: Transaction[];
+  startingBalance?: number;
 }
+
+export interface MonthSettings {
+  startingBalance: number;
+  accountBalances: Record<string, number>;
+}
+
+export const DEFAULT_ACCOUNTS: Account[] = [
+  { id: 'checking', name: 'Checking Account', type: 'checking', color: 'hsl(200 85% 45%)' },
+  { id: 'savings', name: 'Savings Account', type: 'savings', color: 'hsl(160 65% 40%)' },
+  { id: 'credit1', name: 'Credit Card', type: 'credit', color: 'hsl(280 60% 50%)' },
+  { id: 'cash', name: 'Cash', type: 'cash', color: 'hsl(38 92% 50%)' },
+];
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'housing', name: 'Housing', icon: 'Home', color: 'hsl(175 60% 35%)' },

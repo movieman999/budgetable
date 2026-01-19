@@ -1,6 +1,13 @@
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, Lock, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Lock, Settings, Wallet, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   currentMonth: string;
@@ -10,6 +17,7 @@ interface HeaderProps {
   canGoNext: boolean;
   isClosed: boolean;
   onCloseMonth: () => void;
+  onOpenBalanceSettings?: () => void;
 }
 
 export function Header({
@@ -20,6 +28,7 @@ export function Header({
   canGoNext,
   isClosed,
   onCloseMonth,
+  onOpenBalanceSettings,
 }: HeaderProps) {
   return (
     <motion.header
@@ -74,9 +83,25 @@ export function Header({
           </Button>
         </div>
 
-        <Button variant="ghost" size="icon" className="h-9 w-9">
-          <Settings className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={onOpenBalanceSettings} className="cursor-pointer">
+              <Wallet className="mr-2 h-4 w-4" />
+              Starting Balance
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link to="/reports">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Reports
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </motion.header>
   );

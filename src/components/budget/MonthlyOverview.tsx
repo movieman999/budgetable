@@ -1,16 +1,18 @@
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, PiggyBank, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, PiggyBank, Wallet } from "lucide-react";
 
 interface MonthlyOverviewProps {
   income: number;
   expenses: number;
   savings: number;
   daysRemaining: number;
+  startingBalance?: number;
 }
 
-export function MonthlyOverview({ income, expenses, savings, daysRemaining }: MonthlyOverviewProps) {
+export function MonthlyOverview({ income, expenses, savings, daysRemaining, startingBalance = 0 }: MonthlyOverviewProps) {
   const savingsRate = income > 0 ? ((savings / income) * 100).toFixed(0) : '0';
   const isPositive = savings >= 0;
+  const endingBalance = startingBalance + savings;
 
   return (
     <motion.div
@@ -36,6 +38,19 @@ export function MonthlyOverview({ income, expenses, savings, daysRemaining }: Mo
           {savingsRate}% savings rate • {daysRemaining} days left
         </p>
       </div>
+
+      {/* Balance Row */}
+      {startingBalance > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Starting Balance</span>
+          </div>
+          <span className="text-sm font-semibold">
+            ${startingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4">
@@ -84,9 +99,11 @@ export function MonthlyOverview({ income, expenses, savings, daysRemaining }: Mo
               <PiggyBank className="h-4 w-4 text-success" />
             </div>
           </div>
-          <p className="text-xs font-medium text-muted-foreground">Saved</p>
-          <p className={`text-lg font-bold ${isPositive ? 'text-success' : 'text-destructive'}`}>
-            ${Math.abs(savings).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <p className="text-xs font-medium text-muted-foreground">
+            {startingBalance > 0 ? 'End Bal.' : 'Saved'}
+          </p>
+          <p className={`text-lg font-bold ${endingBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
+            ${Math.abs(startingBalance > 0 ? endingBalance : savings).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
         </motion.div>
       </div>

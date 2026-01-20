@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, Lock, Settings, Wallet, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Lock, Settings, Wallet, BarChart3, Tags, CreditCard, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -18,6 +19,7 @@ interface HeaderProps {
   isClosed: boolean;
   onCloseMonth: () => void;
   onOpenBalanceSettings?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function Header({
@@ -29,6 +31,7 @@ export function Header({
   isClosed,
   onCloseMonth,
   onOpenBalanceSettings,
+  onOpenSettings,
 }: HeaderProps) {
   return (
     <motion.header
@@ -99,6 +102,20 @@ export function Header({
                 <BarChart3 className="mr-2 h-4 w-4" />
                 Reports
               </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
+              <Tags className="mr-2 h-4 w-4" />
+              Edit Categories
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
+              <CreditCard className="mr-2 h-4 w-4" />
+              Edit Accounts
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
+              <Download className="mr-2 h-4 w-4" />
+              Backup & Restore
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -7,8 +7,11 @@ import { CloseMonthCard } from "@/components/budget/CloseMonthCard";
 import { QuickAddButton } from "@/components/budget/QuickAddButton";
 import { AddTransactionModal } from "@/components/budget/AddTransactionModal";
 import { StartingBalanceModal } from "@/components/budget/StartingBalanceModal";
-import { Transaction, MonthSettings } from "@/lib/types";
+import { SettingsModal } from "@/components/budget/SettingsModal";
+import { Transaction, MonthSettings, Category, Account, DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/types";
 import { generateForecastedTransactions, mergeTransactionsWithForecasted } from "@/lib/recurring";
+import { exportData, importData, downloadFile } from "@/lib/storage";
+import { toast } from "sonner";
 
 // Demo data for initial state
 const DEMO_TRANSACTIONS: Transaction[] = [
@@ -99,10 +102,13 @@ const MONTHS = [
 
 const Index = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(DEMO_TRANSACTIONS);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS);
   const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 19));
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [monthSettings, setMonthSettings] = useState<Record<string, MonthSettings>>({
     '2026-0': { startingBalance: 12500, accountBalances: { checking: 8000, savings: 3500, credit1: -450, cash: 450 } }
@@ -193,6 +199,11 @@ const Index = () => {
     setEditingTransaction(null);
   };
 
+  const handleDeleteTransaction = (id: string) => {
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    toast.success('Transaction deleted');
+  };
+
   const handleVerifyTransaction = (id: string) => {
     setTransactions((prev) =>
       prev.map((t) => (t.id === id ? { ...t, verified: true } : t))
@@ -230,6 +241,50 @@ const Index = () => {
     }));
   };
 
+  const handleUpdateCategories = (newCategories: Category[]) => {
+    setCategories(newCategories);
+    toast.success('Categories updated');
+  };
+
+  const handleUpdateAccounts = (newAccounts: Account[]) => {
+    setAccounts(newAccounts);
+    toast.success('Accounts updated');
+  };
+
+  const handleBackup = (encryptionKey: string) => {
+    const encrypted = exportData(
+      transactions,
+      categories,
+      accounts,
+      monthSettings,
+      Array.from(closedMonths),
+      encryptionKey
+    );
+    const filename = `budget-backup-${new Date().toISOString().split('T')[0]}.budgetbackup`;
+    downloadFile(encrypted, filename);
+    toast.success('Backup downloaded successfully');
+  };
+
+  const handleRestore = (file: File, encryptionKey: string) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const data = importData(content, encryptionKey);
+      
+      if (data) {
+        setTransactions(data.transactions);
+        setCategories(data.categories);
+        setAccounts(data.accounts);
+        setMonthSettings(data.monthSettings);
+        setClosedMonths(new Set(data.closedMonths));
+        toast.success('Data restored successfully');
+      } else {
+        toast.error('Failed to restore data. Check your password.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header
@@ -241,6 +296,7 @@ const Index = () => {
         isClosed={isClosed}
         onCloseMonth={handleCloseMonth}
         onOpenBalanceSettings={() => setIsBalanceModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-6 pb-24">
@@ -252,13 +308,16 @@ const Index = () => {
           startingBalance={currentMonthSettings.startingBalance}
         />
 
-        <CategoryBreakdown transactions={monthTransactions} />
+        <CategoryBreakdown transactions={monthTransactions} categories={categories} />
 
         <RecentTransactions
           transactions={monthTransactions}
+          categories={categories}
+          accounts={accounts}
           onVerify={handleVerifyTransaction}
           onUnverify={handleUnverifyTransaction}
           onEditTransaction={handleEditTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
         />
 
         <CloseMonthCard
@@ -279,6 +338,8 @@ const Index = () => {
         onAdd={handleAddTransaction}
         editingTransaction={editingTransaction}
         onUpdate={handleUpdateTransaction}
+        categories={categories}
+        accounts={accounts}
       />
 
       <StartingBalanceModal
@@ -287,6 +348,18 @@ const Index = () => {
         currentSettings={currentMonthSettings}
         onSave={handleSaveMonthSettings}
         monthLabel={`${currentMonth} ${currentYear}`}
+        accounts={accounts}
+      />
+
+      <SettingsModal
+        open={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        categories={categories}
+        accounts={accounts}
+        onUpdateCategories={handleUpdateCategories}
+        onUpdateAccounts={handleUpdateAccounts}
+        onBackup={handleBackup}
+        onRestore={handleRestore}
       />
     </div>
   );

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS, Transaction, RecurringSchedule } from "@/lib/types";
+import { Category, Account, Transaction, RecurringSchedule } from "@/lib/types";
 import { IconComponent } from "@/lib/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -19,14 +19,16 @@ interface AddTransactionModalProps {
   onAdd: (transaction: Omit<Transaction, 'id'>) => void;
   editingTransaction?: Transaction | null;
   onUpdate?: (transaction: Transaction) => void;
+  categories: Category[];
+  accounts: Account[];
 }
 
-export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, onUpdate }: AddTransactionModalProps) {
+export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, onUpdate, categories, accounts }: AddTransactionModalProps) {
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(DEFAULT_CATEGORIES[0].id);
+  const [category, setCategory] = useState(categories[0]?.id || 'other');
   const [description, setDescription] = useState('');
-  const [accountId, setAccountId] = useState(DEFAULT_ACCOUNTS[0].id);
+  const [accountId, setAccountId] = useState(accounts[0]?.id || 'checking');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringType, setRecurringType] = useState<RecurringSchedule['type']>('monthly');
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -40,7 +42,7 @@ export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, 
       setAmount(editingTransaction.amount.toString());
       setCategory(editingTransaction.category);
       setDescription(editingTransaction.description);
-      setAccountId(editingTransaction.accountId || DEFAULT_ACCOUNTS[0].id);
+      setAccountId(editingTransaction.accountId || accounts[0]?.id || 'checking');
       setIsRecurring(editingTransaction.isRecurring || false);
       if (editingTransaction.recurringSchedule) {
         setRecurringType(editingTransaction.recurringSchedule.type);
@@ -61,8 +63,8 @@ export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, 
     setType('expense');
     setAmount('');
     setDescription('');
-    setCategory(DEFAULT_CATEGORIES[0].id);
-    setAccountId(DEFAULT_ACCOUNTS[0].id);
+    setCategory(categories[0]?.id || 'other');
+    setAccountId(accounts[0]?.id || 'checking');
     setIsRecurring(false);
     setRecurringType('monthly');
     setStartDate(new Date());
@@ -175,7 +177,7 @@ export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, 
                 <SelectValue placeholder="Select account" />
               </SelectTrigger>
               <SelectContent>
-                {DEFAULT_ACCOUNTS.map((account) => (
+                {accounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>
                     <div className="flex items-center gap-2">
                       <div 
@@ -194,7 +196,7 @@ export function AddTransactionModal({ open, onClose, onAdd, editingTransaction, 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Category</Label>
             <div className="grid grid-cols-4 gap-2">
-              {DEFAULT_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <motion.button
                   key={cat.id}
                   type="button"

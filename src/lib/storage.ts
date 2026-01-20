@@ -1,4 +1,4 @@
-import { Transaction, Category, Account, MonthSettings } from "./types";
+import { Transaction, Category, Account, MonthSettings, RecurringTemplate } from "./types";
 
 export interface AppData {
   version: string;
@@ -8,6 +8,7 @@ export interface AppData {
   accounts: Account[];
   monthSettings: Record<string, MonthSettings>;
   closedMonths: string[];
+  recurringTemplates?: RecurringTemplate[];
 }
 
 // Simple encryption using base64 + a key-based XOR
@@ -35,25 +36,32 @@ export function exportData(
   accounts: Account[],
   monthSettings: Record<string, MonthSettings>,
   closedMonths: string[],
-  encryptionKey: string
+  encryptionKey: string,
+  recurringTemplates?: RecurringTemplate[]
 ): string {
   const appData: AppData = {
-    version: '1.0.0',
+    version: '1.1.0',
     exportedAt: new Date().toISOString(),
     transactions: transactions.map((t) => ({
       ...t,
       date: t.date instanceof Date ? t.date.toISOString() : t.date,
-      recurringSchedule: t.recurringSchedule ? {
-        ...t.recurringSchedule,
-        startDate: t.recurringSchedule.startDate instanceof Date 
-          ? t.recurringSchedule.startDate.toISOString() 
-          : t.recurringSchedule.startDate,
-      } : undefined,
     })) as unknown as Transaction[],
     categories,
     accounts,
     monthSettings,
     closedMonths,
+    recurringTemplates: recurringTemplates?.map((t) => ({
+      ...t,
+      schedule: {
+        ...t.schedule,
+        startDate: t.schedule.startDate instanceof Date
+          ? t.schedule.startDate.toISOString()
+          : t.schedule.startDate,
+        endDate: t.schedule.endDate instanceof Date
+          ? t.schedule.endDate.toISOString()
+          : t.schedule.endDate,
+      }
+    })) as unknown as RecurringTemplate[],
   };
 
   const jsonData = JSON.stringify(appData);
@@ -69,11 +77,19 @@ export function importData(encryptedData: string, encryptionKey: string): AppDat
     appData.transactions = appData.transactions.map((t) => ({
       ...t,
       date: new Date(t.date),
-      recurringSchedule: t.recurringSchedule ? {
-        ...t.recurringSchedule,
-        startDate: new Date(t.recurringSchedule.startDate),
-      } : undefined,
     }));
+
+    // Convert recurring template dates
+    if (appData.recurringTemplates) {
+      appData.recurringTemplates = appData.recurringTemplates.map((t) => ({
+        ...t,
+        schedule: {
+          ...t.schedule,
+          startDate: new Date(t.schedule.startDate),
+          endDate: t.schedule.endDate ? new Date(t.schedule.endDate) : undefined,
+        }
+      }));
+    }
 
     return appData;
   } catch (error) {

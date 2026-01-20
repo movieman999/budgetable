@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, Lock, Settings, Wallet, BarChart3, Tags, CreditCard, Download, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Lock, Settings, Wallet, BarChart3, Tags, CreditCard, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import {
@@ -96,6 +96,12 @@ export function Header({
             <DropdownMenuItem onClick={onOpenBalanceSettings} className="cursor-pointer">
               <Wallet className="mr-2 h-4 w-4" />
               Starting Balance
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link to="/recurring">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Manage Recurring
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link to="/reports">

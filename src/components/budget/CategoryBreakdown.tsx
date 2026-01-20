@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { BarChart3 } from "lucide-react";
-import { DEFAULT_CATEGORIES, Transaction } from "@/lib/types";
+import { Category, Transaction } from "@/lib/types";
 import { IconComponent } from "@/lib/icons";
 
 interface CategoryBreakdownProps {
   transactions: Transaction[];
+  categories: Category[];
 }
 
-export function CategoryBreakdown({ transactions }: CategoryBreakdownProps) {
+export function CategoryBreakdown({ transactions, categories }: CategoryBreakdownProps) {
   const expensesByCategory = transactions
     .filter((t) => t.type === 'expense')
     .reduce((acc, t) => {
@@ -17,7 +18,7 @@ export function CategoryBreakdown({ transactions }: CategoryBreakdownProps) {
 
   const totalExpenses = Object.values(expensesByCategory).reduce((sum, val) => sum + val, 0);
 
-  const sortedCategories = DEFAULT_CATEGORIES
+  const sortedCategories = categories
     .map((cat) => ({
       ...cat,
       amount: expensesByCategory[cat.id] || 0,

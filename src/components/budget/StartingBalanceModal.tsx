@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DEFAULT_ACCOUNTS, MonthSettings } from "@/lib/types";
+import { Account, MonthSettings } from "@/lib/types";
 
 interface StartingBalanceModalProps {
   open: boolean;
@@ -12,6 +12,7 @@ interface StartingBalanceModalProps {
   currentSettings: MonthSettings;
   onSave: (settings: MonthSettings) => void;
   monthLabel: string;
+  accounts: Account[];
 }
 
 export function StartingBalanceModal({ 
@@ -19,7 +20,8 @@ export function StartingBalanceModal({
   onClose, 
   currentSettings, 
   onSave,
-  monthLabel 
+  monthLabel,
+  accounts
 }: StartingBalanceModalProps) {
   const [startingBalance, setStartingBalance] = useState(currentSettings.startingBalance.toString());
   const [accountBalances, setAccountBalances] = useState<Record<string, string>>({});
@@ -27,11 +29,11 @@ export function StartingBalanceModal({
   useEffect(() => {
     setStartingBalance(currentSettings.startingBalance.toString());
     const balances: Record<string, string> = {};
-    DEFAULT_ACCOUNTS.forEach((account) => {
+    accounts.forEach((account) => {
       balances[account.id] = (currentSettings.accountBalances[account.id] || 0).toString();
     });
     setAccountBalances(balances);
-  }, [currentSettings, open]);
+  }, [currentSettings, open, accounts]);
 
   const handleSave = () => {
     const parsedAccountBalances: Record<string, number> = {};
@@ -80,7 +82,7 @@ export function StartingBalanceModal({
 
           <div className="space-y-4">
             <Label className="text-sm font-medium">Account Balances (optional)</Label>
-            {DEFAULT_ACCOUNTS.map((account) => (
+            {accounts.map((account) => (
               <div key={account.id} className="flex items-center gap-3">
                 <div 
                   className="h-8 w-8 rounded-lg flex items-center justify-center"

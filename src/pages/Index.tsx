@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Header } from "@/components/budget/Header";
 import { MonthlyOverview } from "@/components/budget/MonthlyOverview";
 import { CategoryBreakdown } from "@/components/budget/CategoryBreakdown";
@@ -8,49 +8,57 @@ import { QuickAddButton } from "@/components/budget/QuickAddButton";
 import { AddTransactionModal } from "@/components/budget/AddTransactionModal";
 import { StartingBalanceModal } from "@/components/budget/StartingBalanceModal";
 import { SettingsModal } from "@/components/budget/SettingsModal";
-import { Transaction, MonthSettings, Category, Account, DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/types";
-import { generateForecastedTransactions, mergeTransactionsWithForecasted } from "@/lib/recurring";
+import { Transaction, MonthSettings, Category, Account, RecurringTemplate, DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/types";
+import { generateForecastedTransactions, materializePastOccurrences, mergeTransactionsWithForecasted } from "@/lib/recurring";
 import { exportData, importData, downloadFile } from "@/lib/storage";
 import { toast } from "sonner";
 
-// Demo data for initial state
-const DEMO_TRANSACTIONS: Transaction[] = [
+// Demo recurring templates
+const DEMO_RECURRING_TEMPLATES: RecurringTemplate[] = [
   {
-    id: '1',
+    id: 'rec-1',
     type: 'income',
     amount: 5200,
     category: 'other',
     description: 'Monthly Salary',
-    date: new Date(2026, 0, 1),
-    verified: true,
     accountId: 'checking',
-    isRecurring: true,
-    recurringSchedule: { type: 'biweekly', startDate: new Date(2026, 0, 1) },
+    schedule: { type: 'biweekly', startDate: new Date(2026, 0, 1) },
+    isActive: true,
   },
   {
-    id: '2',
+    id: 'rec-2',
     type: 'expense',
     amount: 1450,
     category: 'housing',
     description: 'Rent Payment',
-    date: new Date(2026, 0, 2),
-    verified: true,
     accountId: 'checking',
-    isRecurring: true,
-    recurringSchedule: { type: 'monthly', startDate: new Date(2026, 0, 2), dayOfMonth: 2 },
+    schedule: { type: 'monthly', startDate: new Date(2026, 0, 2), dayOfMonth: 2 },
+    isActive: true,
   },
   {
-    id: '3',
+    id: 'rec-3',
     type: 'expense',
     amount: 89.50,
     category: 'utilities',
     description: 'Electric Bill',
-    date: new Date(2026, 0, 5),
-    verified: true,
     accountId: 'checking',
-    isRecurring: true,
-    recurringSchedule: { type: 'monthly', startDate: new Date(2026, 0, 5), dayOfMonth: 5 },
+    schedule: { type: 'monthly', startDate: new Date(2026, 0, 5), dayOfMonth: 5 },
+    isActive: true,
   },
+  {
+    id: 'rec-4',
+    type: 'expense',
+    amount: 15.99,
+    category: 'entertainment',
+    description: 'Netflix',
+    accountId: 'credit1',
+    schedule: { type: 'monthly', startDate: new Date(2026, 0, 15), dayOfMonth: 15 },
+    isActive: true,
+  },
+];
+
+// Demo one-time transactions
+const DEMO_TRANSACTIONS: Transaction[] = [
   {
     id: '4',
     type: 'expense',
@@ -72,18 +80,6 @@ const DEMO_TRANSACTIONS: Transaction[] = [
     accountId: 'credit1',
   },
   {
-    id: '6',
-    type: 'expense',
-    amount: 15.99,
-    category: 'entertainment',
-    description: 'Netflix',
-    date: new Date(2026, 0, 15),
-    verified: true,
-    accountId: 'credit1',
-    isRecurring: true,
-    recurringSchedule: { type: 'monthly', startDate: new Date(2026, 0, 15), dayOfMonth: 15 },
-  },
-  {
     id: '7',
     type: 'expense',
     amount: 127.45,
@@ -102,6 +98,7 @@ const MONTHS = [
 
 const Index = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(DEMO_TRANSACTIONS);
+  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>(DEMO_RECURRING_TEMPLATES);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS);
   const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 19));
@@ -120,21 +117,28 @@ const Index = () => {
 
   const currentMonthSettings = monthSettings[monthKey] || { startingBalance: 0, accountBalances: {} };
 
-  // Get recurring transactions and generate forecasted ones
-  const recurringTransactions = useMemo(() => {
-    return transactions.filter((t) => t.isRecurring && !t.isForecasted);
-  }, [transactions]);
+  // Materialize past recurring transactions when viewing a month
+  useEffect(() => {
+    const newTransactions = materializePastOccurrences(
+      recurringTemplates,
+      currentDate,
+      transactions
+    );
+    if (newTransactions.length > 0) {
+      setTransactions(prev => [...prev, ...newTransactions]);
+    }
+  }, [currentDate, recurringTemplates]);
 
+  // Generate forecasted transactions for future dates
   const forecastedTransactions = useMemo(() => {
-    return generateForecastedTransactions(recurringTransactions, currentDate);
-  }, [recurringTransactions, currentDate]);
+    return generateForecastedTransactions(recurringTemplates, currentDate, transactions);
+  }, [recurringTemplates, currentDate, transactions]);
 
   const monthTransactions = useMemo(() => {
     const actualTransactions = transactions.filter((t) => {
       const tDate = new Date(t.date);
       return tDate.getMonth() === currentDate.getMonth() && 
-             tDate.getFullYear() === currentDate.getFullYear() &&
-             !t.isForecasted;
+             tDate.getFullYear() === currentDate.getFullYear();
     });
     
     // Merge with forecasted for this month
@@ -217,17 +221,13 @@ const Index = () => {
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
-    // Don't allow editing forecasted transactions directly - edit the parent
-    if (transaction.isForecasted && transaction.recurringParentId) {
-      const parent = transactions.find((t) => t.id === transaction.recurringParentId);
-      if (parent) {
-        setEditingTransaction(parent);
-        setIsAddModalOpen(true);
-      }
-    } else {
-      setEditingTransaction(transaction);
-      setIsAddModalOpen(true);
+    // For forecasted transactions, don't allow editing - they need to materialize first
+    if (transaction.isForecasted) {
+      toast.info('This is a forecasted transaction. Wait for the date to arrive or manage the recurring item in Settings > Recurring.');
+      return;
     }
+    setEditingTransaction(transaction);
+    setIsAddModalOpen(true);
   };
 
   const handleCloseMonth = () => {
@@ -258,7 +258,8 @@ const Index = () => {
       accounts,
       monthSettings,
       Array.from(closedMonths),
-      encryptionKey
+      encryptionKey,
+      recurringTemplates
     );
     const filename = `budget-backup-${new Date().toISOString().split('T')[0]}.budgetbackup`;
     downloadFile(encrypted, filename);
@@ -277,6 +278,9 @@ const Index = () => {
         setAccounts(data.accounts);
         setMonthSettings(data.monthSettings);
         setClosedMonths(new Set(data.closedMonths));
+        if (data.recurringTemplates) {
+          setRecurringTemplates(data.recurringTemplates);
+        }
         toast.success('Data restored successfully');
       } else {
         toast.error('Failed to restore data. Check your password.');

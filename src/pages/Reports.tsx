@@ -1,35 +1,25 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, TrendingUp, TrendingDown, PiggyBank, Calendar, BarChart3, Filter } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, PiggyBank, Calendar, BarChart3, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Transaction, Category, MonthSettings } from "@/lib/types";
+import { useBudget } from "@/contexts/BudgetContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-
-interface ReportsProps {
-  transactions: Transaction[];
-  categories: Category[];
-  monthSettings: Record<string, MonthSettings>;
-}
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
-const FULL_MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
-type DateRange = 'all' | '3m' | '6m' | '1y' | 'ytd' | 'custom';
+type DateRange = 'all' | '3m' | '6m' | '1y' | 'ytd';
 type ChartType = 'trend' | 'comparison' | 'category' | 'savings';
 
-export function Reports({ transactions, categories, monthSettings }: ReportsProps) {
+export default function Reports() {
+  const { transactions, categories, loading } = useBudget();
+  
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [chartType, setChartType] = useState<ChartType>('trend');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   const filteredTransactions = useMemo(() => {
     if (dateRange === 'all') return transactions.filter((t) => !t.isForecasted);
@@ -58,11 +48,6 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
       return tDate >= startDate && tDate <= now;
     });
   }, [transactions, dateRange]);
-
-  const categoryFilteredTransactions = useMemo(() => {
-    if (selectedCategory === 'all') return filteredTransactions;
-    return filteredTransactions.filter((t) => t.category === selectedCategory);
-  }, [filteredTransactions, selectedCategory]);
 
   const monthlyData = useMemo(() => {
     const data: Record<string, { income: number; expenses: number; savings: number; month: string }> = {};
@@ -122,14 +107,14 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
   }, [filteredTransactions, categories]);
 
   const totals = useMemo(() => {
-    const income = categoryFilteredTransactions
+    const income = filteredTransactions
       .filter((t) => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
-    const expenses = categoryFilteredTransactions
+    const expenses = filteredTransactions
       .filter((t) => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
     return { income, expenses, savings: income - expenses };
-  }, [categoryFilteredTransactions]);
+  }, [filteredTransactions]);
 
   const averages = useMemo(() => {
     const monthCount = monthlyData.length || 1;
@@ -148,37 +133,6 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
     });
   }, [monthlyData]);
 
-  // Year over Year comparison
-  const yoyData = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const years: Record<number, Record<number, { income: number; expenses: number }>> = {};
-    
-    filteredTransactions.forEach((t) => {
-      const date = new Date(t.date);
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      
-      if (!years[year]) years[year] = {};
-      if (!years[year][month]) years[year][month] = { income: 0, expenses: 0 };
-      
-      if (t.type === 'income') {
-        years[year][month].income += t.amount;
-      } else {
-        years[year][month].expenses += t.amount;
-      }
-    });
-    
-    return FULL_MONTHS.map((monthName, index) => {
-      const result: Record<string, string | number> = { month: MONTHS[index] };
-      Object.keys(years).forEach((year) => {
-        const yearData = years[parseInt(year)][index];
-        result[`${year} Income`] = yearData?.income || 0;
-        result[`${year} Expenses`] = yearData?.expenses || 0;
-      });
-      return result;
-    });
-  }, [filteredTransactions]);
-
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     filteredTransactions.forEach((t) => {
@@ -186,6 +140,17 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
     });
     return Array.from(years).sort();
   }, [filteredTransactions]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading reports...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -333,17 +298,17 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
           </motion.div>
         )}
 
-        {chartType === 'comparison' && (
+        {chartType === 'savings' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl bg-card p-6 shadow-card"
           >
-            <h3 className="mb-4 text-sm font-semibold">Year over Year Comparison</h3>
-            {availableYears.length > 0 ? (
+            <h3 className="mb-4 text-sm font-semibold">Cumulative Savings Growth</h3>
+            {savingsOverTime.length > 0 ? (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={yoyData}>
+                  <AreaChart data={savingsOverTime}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                     <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -355,22 +320,19 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
                         borderRadius: '8px',
                       }}
                     />
-                    {availableYears.map((year, index) => (
-                      <Line
-                        key={`${year}-expenses`}
-                        type="monotone"
-                        dataKey={`${year} Expenses`}
-                        stroke={`hsl(${(index * 60) % 360} 70% 50%)`}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
+                    <Area 
+                      type="monotone" 
+                      dataKey="cumulativeSavings" 
+                      stroke="hsl(var(--success))" 
+                      fill="hsl(var(--success) / 0.2)" 
+                      name="Total Savings"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <div className="flex h-80 items-center justify-center text-muted-foreground">
-                Need data from multiple months to compare
+                No data available for selected period
               </div>
             )}
           </motion.div>
@@ -423,7 +385,7 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
               <h3 className="mb-4 text-sm font-semibold">Category Breakdown</h3>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {categoryBreakdown.map((cat, index) => {
-                  const percentage = (cat.value / totals.expenses) * 100;
+                  const percentage = totals.expenses > 0 ? (cat.value / totals.expenses) * 100 : 0;
                   return (
                     <motion.div
                       key={cat.name}
@@ -443,15 +405,15 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
                           ${cat.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
-                      <div className="ml-6 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${percentage}%` }}
-                          transition={{ duration: 0.5, delay: 0.2 + index * 0.05 }}
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: cat.color }}
+                      <div className="h-2 rounded-full bg-muted">
+                        <div 
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${percentage}%`, backgroundColor: cat.color }}
                         />
                       </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {percentage.toFixed(1)}% of total
+                      </p>
                     </motion.div>
                   );
                 })}
@@ -460,17 +422,17 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
           </motion.div>
         )}
 
-        {chartType === 'savings' && (
+        {chartType === 'comparison' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl bg-card p-6 shadow-card"
           >
-            <h3 className="mb-4 text-sm font-semibold">Cumulative Savings Over Time</h3>
-            {savingsOverTime.length > 0 ? (
+            <h3 className="mb-4 text-sm font-semibold">Year over Year Comparison</h3>
+            {availableYears.length > 0 ? (
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={savingsOverTime}>
+                  <LineChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                     <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -482,28 +444,14 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
                         borderRadius: '8px',
                       }}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="cumulativeSavings"
-                      stroke="hsl(var(--success))"
-                      fill="hsl(var(--success))"
-                      fillOpacity={0.3}
-                      name="Total Savings"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="savings"
-                      stroke="hsl(var(--primary))"
-                      fill="hsl(var(--primary))"
-                      fillOpacity={0.2}
-                      name="Monthly Savings"
-                    />
-                  </AreaChart>
+                    <Line type="monotone" dataKey="income" stroke="hsl(var(--income))" strokeWidth={2} dot={false} name="Income" />
+                    <Line type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} name="Expenses" />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <div className="flex h-80 items-center justify-center text-muted-foreground">
-                No data available for selected period
+                Need data from multiple months to compare
               </div>
             )}
           </motion.div>
@@ -512,5 +460,3 @@ export function Reports({ transactions, categories, monthSettings }: ReportsProp
     </div>
   );
 }
-
-export default Reports;

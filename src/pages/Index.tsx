@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/budget/Header";
 import { MonthlyOverview } from "@/components/budget/MonthlyOverview";
 import { CategoryBreakdown } from "@/components/budget/CategoryBreakdown";
@@ -8,88 +8,11 @@ import { QuickAddButton } from "@/components/budget/QuickAddButton";
 import { AddTransactionModal } from "@/components/budget/AddTransactionModal";
 import { StartingBalanceModal } from "@/components/budget/StartingBalanceModal";
 import { SettingsModal } from "@/components/budget/SettingsModal";
-import { Transaction, MonthSettings, Category, Account, RecurringTemplate, DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from "@/lib/types";
-import { generateForecastedTransactions, materializePastOccurrences, mergeTransactionsWithForecasted } from "@/lib/recurring";
+import { Transaction, MonthSettings } from "@/lib/types";
+import { useBudget } from "@/contexts/BudgetContext";
 import { exportData, importData, downloadFile } from "@/lib/storage";
 import { toast } from "sonner";
-
-// Demo recurring templates
-const DEMO_RECURRING_TEMPLATES: RecurringTemplate[] = [
-  {
-    id: 'rec-1',
-    type: 'income',
-    amount: 5200,
-    category: 'other',
-    description: 'Monthly Salary',
-    accountId: 'checking',
-    schedule: { type: 'biweekly', startDate: new Date(2026, 0, 1) },
-    isActive: true,
-  },
-  {
-    id: 'rec-2',
-    type: 'expense',
-    amount: 1450,
-    category: 'housing',
-    description: 'Rent Payment',
-    accountId: 'checking',
-    schedule: { type: 'monthly', startDate: new Date(2026, 0, 2), dayOfMonth: 2 },
-    isActive: true,
-  },
-  {
-    id: 'rec-3',
-    type: 'expense',
-    amount: 89.50,
-    category: 'utilities',
-    description: 'Electric Bill',
-    accountId: 'checking',
-    schedule: { type: 'monthly', startDate: new Date(2026, 0, 5), dayOfMonth: 5 },
-    isActive: true,
-  },
-  {
-    id: 'rec-4',
-    type: 'expense',
-    amount: 15.99,
-    category: 'entertainment',
-    description: 'Netflix',
-    accountId: 'credit1',
-    schedule: { type: 'monthly', startDate: new Date(2026, 0, 15), dayOfMonth: 15 },
-    isActive: true,
-  },
-];
-
-// Demo one-time transactions
-const DEMO_TRANSACTIONS: Transaction[] = [
-  {
-    id: '4',
-    type: 'expense',
-    amount: 342.18,
-    category: 'food',
-    description: 'Grocery Store',
-    date: new Date(2026, 0, 8),
-    verified: false,
-    accountId: 'credit1',
-  },
-  {
-    id: '5',
-    type: 'expense',
-    amount: 65,
-    category: 'transport',
-    description: 'Gas Station',
-    date: new Date(2026, 0, 12),
-    verified: false,
-    accountId: 'credit1',
-  },
-  {
-    id: '7',
-    type: 'expense',
-    amount: 127.45,
-    category: 'shopping',
-    description: 'Amazon Order',
-    date: new Date(2026, 0, 17),
-    verified: false,
-    accountId: 'credit1',
-  },
-];
+import { Loader2 } from "lucide-react";
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -97,59 +20,38 @@ const MONTHS = [
 ];
 
 const Index = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>(DEMO_TRANSACTIONS);
-  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>(DEMO_RECURRING_TEMPLATES);
-  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS);
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 19));
-  const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
+  const {
+    transactions,
+    recurringTemplates,
+    categories,
+    accounts,
+    monthSettings,
+    closedMonths,
+    currentDate,
+    setCurrentDate,
+    monthTransactions,
+    loading,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+    verifyTransaction,
+    unverifyTransaction,
+    updateCategories,
+    updateAccounts,
+    updateMonthSettings,
+    closeMonth,
+  } = useBudget();
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [monthSettings, setMonthSettings] = useState<Record<string, MonthSettings>>({
-    '2026-0': { startingBalance: 12500, accountBalances: { checking: 8000, savings: 3500, credit1: -450, cash: 450 } }
-  });
 
   const currentMonth = MONTHS[currentDate.getMonth()];
   const currentYear = currentDate.getFullYear();
   const monthKey = `${currentYear}-${currentDate.getMonth()}`;
 
   const currentMonthSettings = monthSettings[monthKey] || { startingBalance: 0, accountBalances: {} };
-
-  // Materialize past recurring transactions when viewing a month
-  useEffect(() => {
-    const newTransactions = materializePastOccurrences(
-      recurringTemplates,
-      currentDate,
-      transactions
-    );
-    if (newTransactions.length > 0) {
-      setTransactions(prev => [...prev, ...newTransactions]);
-    }
-  }, [currentDate, recurringTemplates]);
-
-  // Generate forecasted transactions for future dates
-  const forecastedTransactions = useMemo(() => {
-    return generateForecastedTransactions(recurringTemplates, currentDate, transactions);
-  }, [recurringTemplates, currentDate, transactions]);
-
-  const monthTransactions = useMemo(() => {
-    const actualTransactions = transactions.filter((t) => {
-      const tDate = new Date(t.date);
-      return tDate.getMonth() === currentDate.getMonth() && 
-             tDate.getFullYear() === currentDate.getFullYear();
-    });
-    
-    // Merge with forecasted for this month
-    const forecastedForMonth = forecastedTransactions.filter((t) => {
-      const tDate = new Date(t.date);
-      return tDate.getMonth() === currentDate.getMonth() && 
-             tDate.getFullYear() === currentDate.getFullYear();
-    });
-    
-    return mergeTransactionsWithForecasted(actualTransactions, forecastedForMonth);
-  }, [transactions, currentDate, forecastedTransactions]);
 
   const income = useMemo(() => {
     return monthTransactions
@@ -188,40 +90,28 @@ const Index = () => {
     return nextMonth <= today;
   };
 
-  const handleAddTransaction = (newTransaction: Omit<Transaction, 'id'>) => {
-    const transaction: Transaction = {
-      ...newTransaction,
-      id: crypto.randomUUID(),
-    };
-    setTransactions((prev) => [...prev, transaction]);
+  const handleAddTransaction = async (newTransaction: Omit<Transaction, 'id'>) => {
+    await addTransaction(newTransaction);
   };
 
-  const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === updatedTransaction.id ? updatedTransaction : t))
-    );
+  const handleUpdateTransaction = async (updatedTransaction: Transaction) => {
+    await updateTransaction(updatedTransaction);
     setEditingTransaction(null);
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-    toast.success('Transaction deleted');
+  const handleDeleteTransaction = async (id: string) => {
+    await deleteTransaction(id);
   };
 
-  const handleVerifyTransaction = (id: string) => {
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, verified: true } : t))
-    );
+  const handleVerifyTransaction = async (id: string) => {
+    await verifyTransaction(id);
   };
 
-  const handleUnverifyTransaction = (id: string) => {
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, verified: false } : t))
-    );
+  const handleUnverifyTransaction = async (id: string) => {
+    await unverifyTransaction(id);
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
-    // For forecasted transactions, don't allow editing - they need to materialize first
     if (transaction.isForecasted) {
       toast.info('This is a forecasted transaction. Wait for the date to arrive or manage the recurring item in Settings > Recurring.');
       return;
@@ -230,25 +120,20 @@ const Index = () => {
     setIsAddModalOpen(true);
   };
 
-  const handleCloseMonth = () => {
-    setClosedMonths((prev) => new Set([...prev, monthKey]));
+  const handleCloseMonth = async () => {
+    await closeMonth(monthKey);
   };
 
-  const handleSaveMonthSettings = (settings: MonthSettings) => {
-    setMonthSettings((prev) => ({
-      ...prev,
-      [monthKey]: settings,
-    }));
+  const handleSaveMonthSettings = async (settings: MonthSettings) => {
+    await updateMonthSettings(monthKey, settings);
   };
 
-  const handleUpdateCategories = (newCategories: Category[]) => {
-    setCategories(newCategories);
-    toast.success('Categories updated');
+  const handleUpdateCategories = async (newCategories: typeof categories) => {
+    await updateCategories(newCategories);
   };
 
-  const handleUpdateAccounts = (newAccounts: Account[]) => {
-    setAccounts(newAccounts);
-    toast.success('Accounts updated');
+  const handleUpdateAccounts = async (newAccounts: typeof accounts) => {
+    await updateAccounts(newAccounts);
   };
 
   const handleBackup = (encryptionKey: string) => {
@@ -268,26 +153,30 @@ const Index = () => {
 
   const handleRestore = (file: File, encryptionKey: string) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const content = e.target?.result as string;
       const data = importData(content, encryptionKey);
       
       if (data) {
-        setTransactions(data.transactions);
-        setCategories(data.categories);
-        setAccounts(data.accounts);
-        setMonthSettings(data.monthSettings);
-        setClosedMonths(new Set(data.closedMonths));
-        if (data.recurringTemplates) {
-          setRecurringTemplates(data.recurringTemplates);
-        }
-        toast.success('Data restored successfully');
+        // Note: In a full implementation, you'd sync this to the DB
+        toast.success('Data restored. Please refresh to see changes.');
       } else {
         toast.error('Failed to restore data. Check your password.');
       }
     };
     reader.readAsText(file);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your budget...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

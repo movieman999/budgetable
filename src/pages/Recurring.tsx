@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCw, Trash2, Edit2, Pause, Play } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, Trash2, Edit2, Pause, Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RecurringTemplate, Category, Account } from "@/lib/types";
+import { RecurringTemplate } from "@/lib/types";
 import { IconComponent } from "@/lib/icons";
 import {
   AlertDialog,
@@ -16,27 +16,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AddRecurringModal } from "@/components/budget/AddRecurringModal";
+import { useBudget } from "@/contexts/BudgetContext";
 import { format } from "date-fns";
 
-interface RecurringPageProps {
-  templates: RecurringTemplate[];
-  categories: Category[];
-  accounts: Account[];
-  onAddTemplate: (template: Omit<RecurringTemplate, 'id'>) => void;
-  onUpdateTemplate: (template: RecurringTemplate) => void;
-  onDeleteTemplate: (id: string) => void;
-  onToggleActive: (id: string) => void;
-}
+export default function Recurring() {
+  const {
+    recurringTemplates,
+    categories,
+    accounts,
+    addRecurringTemplate,
+    updateRecurringTemplate,
+    deleteRecurringTemplate,
+    toggleRecurringActive,
+    loading,
+  } = useBudget();
 
-export default function Recurring({
-  templates,
-  categories,
-  accounts,
-  onAddTemplate,
-  onUpdateTemplate,
-  onDeleteTemplate,
-  onToggleActive,
-}: RecurringPageProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<RecurringTemplate | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -74,12 +68,12 @@ export default function Recurring({
     return s[(v - 20) % 10] || s[v] || s[0];
   };
 
-  const incomeTemplates = templates.filter(t => t.type === 'income');
-  const expenseTemplates = templates.filter(t => t.type === 'expense');
+  const incomeTemplates = recurringTemplates.filter(t => t.type === 'income');
+  const expenseTemplates = recurringTemplates.filter(t => t.type === 'expense');
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteConfirmId) {
-      onDeleteTemplate(deleteConfirmId);
+      await deleteRecurringTemplate(deleteConfirmId);
     }
     setDeleteConfirmId(null);
   };
@@ -88,6 +82,29 @@ export default function Recurring({
     setEditingTemplate(template);
     setIsAddModalOpen(true);
   };
+
+  const handleAddTemplate = async (template: Omit<RecurringTemplate, 'id'>) => {
+    await addRecurringTemplate(template);
+  };
+
+  const handleUpdateTemplate = async (template: RecurringTemplate) => {
+    await updateRecurringTemplate(template);
+  };
+
+  const handleToggleActive = async (id: string) => {
+    await toggleRecurringActive(id);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading recurring items...</p>
+        </div>
+      </div>
+    );
+  }
 
   const TemplateCard = ({ template }: { template: RecurringTemplate }) => {
     const category = getCategoryInfo(template.category);
@@ -146,7 +163,7 @@ export default function Recurring({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={() => onToggleActive(template.id)}
+              onClick={() => handleToggleActive(template.id)}
               title={template.isActive ? 'Pause' : 'Resume'}
             >
               {template.isActive ? (
@@ -268,8 +285,8 @@ export default function Recurring({
           setIsAddModalOpen(false);
           setEditingTemplate(null);
         }}
-        onAdd={onAddTemplate}
-        onUpdate={onUpdateTemplate}
+        onAdd={handleAddTemplate}
+        onUpdate={handleUpdateTemplate}
         editingTemplate={editingTemplate}
         categories={categories}
         accounts={accounts}

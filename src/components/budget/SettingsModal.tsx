@@ -1,24 +1,31 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Trash2, Palette, FolderOpen, Save, Upload, Download, Lock, Tags, CreditCard } from "lucide-react";
+import { X, Plus, Trash2, Palette, FolderOpen, Save, Upload, Download, Lock, Tags, CreditCard, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Category, Account } from "@/lib/types";
+import { Category, Account, Transaction, RecurringTemplate } from "@/lib/types";
 import { IconComponent } from "@/lib/icons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImportExportModal } from "./ImportExportModal";
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   categories: Category[];
   accounts: Account[];
+  transactions: Transaction[];
+  recurringTemplates: RecurringTemplate[];
   onUpdateCategories: (categories: Category[]) => void;
   onUpdateAccounts: (accounts: Account[]) => void;
   onBackup: (key: string) => void;
   onRestore: (file: File, key: string) => void;
+  onImportTransactions: (transactions: Omit<Transaction, 'id'>[]) => Promise<void>;
+  onImportCategories: (categories: Omit<Category, 'id'>[]) => Promise<void>;
+  onImportAccounts: (accounts: Omit<Account, 'id'>[]) => Promise<void>;
+  onImportRecurringTemplates: (templates: Omit<RecurringTemplate, 'id'>[]) => Promise<void>;
 }
 
 const ICON_OPTIONS = [
@@ -45,16 +52,23 @@ export function SettingsModal({
   onClose,
   categories,
   accounts,
+  transactions,
+  recurringTemplates,
   onUpdateCategories,
   onUpdateAccounts,
   onBackup,
   onRestore,
+  onImportTransactions,
+  onImportCategories,
+  onImportAccounts,
+  onImportRecurringTemplates,
 }: SettingsModalProps) {
   const [localCategories, setLocalCategories] = useState<Category[]>(categories);
   const [localAccounts, setLocalAccounts] = useState<Account[]>(accounts);
   const [backupKey, setBackupKey] = useState('');
   const [restoreKey, setRestoreKey] = useState('');
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
 
   const handleAddCategory = () => {
     const newCategory: Category = {
@@ -288,8 +302,28 @@ export function SettingsModal({
           <TabsContent value="backup" className="mt-4 space-y-6">
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-medium">
+                <FileSpreadsheet className="h-4 w-4" />
+                Import / Export CSV
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Import or export individual data types (transactions, categories, accounts) as CSV files.
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsImportExportOpen(true)}
+                className="w-full"
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Open Import / Export
+              </Button>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            <div className="space-y-3">
+              <h4 className="flex items-center gap-2 text-sm font-medium">
                 <Download className="h-4 w-4" />
-                Backup Data
+                Full Backup
               </h4>
               <p className="text-xs text-muted-foreground">
                 Export all your data as an encrypted file. You'll need the password to restore it later.
@@ -314,7 +348,7 @@ export function SettingsModal({
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-medium">
                 <Upload className="h-4 w-4" />
-                Restore Data
+                Restore Backup
               </h4>
               <p className="text-xs text-muted-foreground">
                 Import data from a backup file. This will replace all current data.
@@ -343,6 +377,19 @@ export function SettingsModal({
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      <ImportExportModal
+        open={isImportExportOpen}
+        onClose={() => setIsImportExportOpen(false)}
+        transactions={transactions}
+        categories={categories}
+        accounts={accounts}
+        recurringTemplates={recurringTemplates}
+        onImportTransactions={onImportTransactions}
+        onImportCategories={onImportCategories}
+        onImportAccounts={onImportAccounts}
+        onImportRecurringTemplates={onImportRecurringTemplates}
+      />
     </Dialog>
   );
 }

@@ -31,6 +31,7 @@ const Index = () => {
     setCurrentDate,
     monthTransactions,
     loading,
+    initialLoaded,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -40,6 +41,11 @@ const Index = () => {
     updateAccounts,
     updateMonthSettings,
     closeMonth,
+    reopenMonth,
+    importTransactions,
+    importCategories,
+    importAccounts,
+    importRecurringTemplates,
   } = useBudget();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -124,6 +130,10 @@ const Index = () => {
     await closeMonth(monthKey);
   };
 
+  const handleReopenMonth = async () => {
+    await reopenMonth(monthKey);
+  };
+
   const handleSaveMonthSettings = async (settings: MonthSettings) => {
     await updateMonthSettings(monthKey, settings);
   };
@@ -167,7 +177,8 @@ const Index = () => {
     reader.readAsText(file);
   };
 
-  if (loading) {
+  // Only show loading on first load, not on tab switches
+  if (!initialLoaded && loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -216,6 +227,7 @@ const Index = () => {
         <CloseMonthCard
           transactions={monthTransactions}
           onCloseMonth={handleCloseMonth}
+          onReopenMonth={handleReopenMonth}
           isClosed={isClosed}
         />
       </main>
@@ -249,10 +261,16 @@ const Index = () => {
         onClose={() => setIsSettingsModalOpen(false)}
         categories={categories}
         accounts={accounts}
+        transactions={transactions}
+        recurringTemplates={recurringTemplates}
         onUpdateCategories={handleUpdateCategories}
         onUpdateAccounts={handleUpdateAccounts}
         onBackup={handleBackup}
         onRestore={handleRestore}
+        onImportTransactions={importTransactions}
+        onImportCategories={importCategories}
+        onImportAccounts={importAccounts}
+        onImportRecurringTemplates={importRecurringTemplates}
       />
     </div>
   );

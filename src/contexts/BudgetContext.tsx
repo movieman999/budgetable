@@ -32,6 +32,7 @@ interface BudgetContextType {
   
   // Loading state
   loading: boolean;
+  initialLoaded: boolean;
   
   // Transaction actions
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
@@ -51,6 +52,13 @@ interface BudgetContextType {
   updateAccounts: (accounts: Account[]) => Promise<void>;
   updateMonthSettings: (key: string, settings: MonthSettings) => Promise<void>;
   closeMonth: (key: string) => Promise<void>;
+  reopenMonth: (key: string) => Promise<void>;
+  
+  // Import/Export
+  importTransactions: (transactions: Omit<Transaction, 'id'>[]) => Promise<void>;
+  importCategories: (categories: Omit<Category, 'id'>[]) => Promise<void>;
+  importAccounts: (accounts: Omit<Account, 'id'>[]) => Promise<void>;
+  importRecurringTemplates: (templates: Omit<RecurringTemplate, 'id'>[]) => Promise<void>;
   
   // Refresh
   refreshData: () => Promise<void>;
@@ -69,7 +77,8 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   const [monthSettings, setMonthSettings] = useState<Record<string, MonthSettings>>({});
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   
   // Category/account ID maps for DB lookups
   const [categoryIdMap, setCategoryIdMap] = useState<Record<string, string>>({});
@@ -255,6 +264,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       toast.error('Failed to load your data');
     } finally {
       setLoading(false);
+      setInitialLoaded(true);
     }
   }, [user]);
 
@@ -634,6 +644,176 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     toast.success('Month closed');
   }, [user, monthSettings]);
 
+  const reopenMonth = useCallback(async (key: string) => {
+    if (!user) return;
+    
+    const { error } = await supabase.from('month_settings').update({
+      is_closed: false,
+    }).eq('user_id', user.id).eq('month_key', key);
+    
+    if (error) {
+      toast.error('Failed to reopen month');
+      return;
+    }
+    
+    setClosedMonths(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+    toast.success('Month reopened for editing');
+  }, [user]);
+
+  // Import actions
+  const importTransactions = useCallback(async (newTransactions: Omit<Transaction, 'id'>[]) => {
+    if (!user) return;
+    
+    const inserts = newTransactions.map(t => ({
+      user_id: user.id,
+      type: t.type,
+      amount: t.amount,
+      category_id: t.category,
+      description: t.description,
+      date: t.date instanceof Date ? t.date.toISOString().split('T')[0] : t.date,
+      verified: t.verified || false,
+      account_id: t.accountId || null,
+      was_auto_generated: false,
+    }));
+    
+    const { data, error } = await supabase.from('transactions').insert(inserts).select();
+    
+    if (error) {
+      toast.error('Failed to import transactions');
+      return;
+    }
+    
+    if (data) {
+      const txs: Transaction[] = data.map(t => ({
+        id: t.id,
+        type: t.type as 'income' | 'expense',
+        amount: Number(t.amount),
+        category: t.category_id || 'other',
+        description: t.description || '',
+        date: new Date(t.date),
+        verified: t.verified,
+        accountId: t.account_id || undefined,
+      }));
+      setTransactions(prev => [...prev, ...txs]);
+      toast.success(`Imported ${txs.length} transactions`);
+    }
+  }, [user]);
+
+  const importCategories = useCallback(async (newCategories: Omit<Category, 'id'>[]) => {
+    if (!user) return;
+    
+    const inserts = newCategories.map(c => ({
+      user_id: user.id,
+      name: c.name,
+      icon: c.icon,
+      color: c.color,
+    }));
+    
+    const { data, error } = await supabase.from('categories').insert(inserts).select();
+    
+    if (error) {
+      toast.error('Failed to import categories');
+      return;
+    }
+    
+    if (data) {
+      const cats: Category[] = data.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+      }));
+      setCategories(prev => [...prev, ...cats]);
+      toast.success(`Imported ${cats.length} categories`);
+    }
+  }, [user]);
+
+  const importAccounts = useCallback(async (newAccounts: Omit<Account, 'id'>[]) => {
+    if (!user) return;
+    
+    const inserts = newAccounts.map(a => ({
+      user_id: user.id,
+      name: a.name,
+      type: a.type,
+      color: a.color,
+    }));
+    
+    const { data, error } = await supabase.from('accounts').insert(inserts).select();
+    
+    if (error) {
+      toast.error('Failed to import accounts');
+      return;
+    }
+    
+    if (data) {
+      const accs: Account[] = data.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: a.type as Account['type'],
+        color: a.color,
+      }));
+      setAccounts(prev => [...prev, ...accs]);
+      toast.success(`Imported ${accs.length} accounts`);
+    }
+  }, [user]);
+
+  const importRecurringTemplates = useCallback(async (templates: Omit<RecurringTemplate, 'id'>[]) => {
+    if (!user) return;
+    
+    const inserts = templates.map(t => ({
+      user_id: user.id,
+      type: t.type,
+      amount: t.amount,
+      category_id: t.category,
+      description: t.description,
+      account_id: t.accountId || null,
+      schedule_type: t.schedule.type,
+      schedule_start_date: t.schedule.startDate instanceof Date
+        ? t.schedule.startDate.toISOString().split('T')[0]
+        : t.schedule.startDate,
+      schedule_end_date: t.schedule.endDate 
+        ? (t.schedule.endDate instanceof Date 
+            ? t.schedule.endDate.toISOString().split('T')[0] 
+            : t.schedule.endDate)
+        : null,
+      schedule_day_of_month: t.schedule.dayOfMonth || null,
+      schedule_custom_days: t.schedule.customDays || null,
+      is_active: t.isActive,
+    }));
+    
+    const { data, error } = await supabase.from('recurring_templates').insert(inserts).select();
+    
+    if (error) {
+      toast.error('Failed to import recurring templates');
+      return;
+    }
+    
+    if (data) {
+      const newTemplates: RecurringTemplate[] = data.map(t => ({
+        id: t.id,
+        type: t.type as 'income' | 'expense',
+        amount: Number(t.amount),
+        category: t.category_id || 'other',
+        description: t.description || '',
+        accountId: t.account_id || undefined,
+        schedule: {
+          type: t.schedule_type as RecurringTemplate['schedule']['type'],
+          startDate: new Date(t.schedule_start_date),
+          endDate: t.schedule_end_date ? new Date(t.schedule_end_date) : undefined,
+          dayOfMonth: t.schedule_day_of_month || undefined,
+          customDays: t.schedule_custom_days || undefined,
+        },
+        isActive: t.is_active,
+      }));
+      setRecurringTemplates(prev => [...prev, ...newTemplates]);
+      toast.success(`Imported ${newTemplates.length} recurring templates`);
+    }
+  }, [user]);
+
   const refreshData = useCallback(async () => {
     await loadData();
   }, [loadData]);
@@ -650,6 +830,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     monthTransactions,
     forecastedTransactions,
     loading,
+    initialLoaded,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -663,6 +844,11 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     updateAccounts,
     updateMonthSettings,
     closeMonth,
+    reopenMonth,
+    importTransactions,
+    importCategories,
+    importAccounts,
+    importRecurringTemplates,
     refreshData,
   };
 

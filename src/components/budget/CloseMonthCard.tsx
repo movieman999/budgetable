@@ -1,17 +1,18 @@
 import { motion } from "framer-motion";
-import { CheckCircle, AlertCircle, Lock } from "lucide-react";
+import { CheckCircle, AlertCircle, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Transaction } from "@/lib/types";
 
 interface CloseMonthCardProps {
   transactions: Transaction[];
   onCloseMonth: () => void;
+  onReopenMonth: () => void;
   isClosed: boolean;
 }
 
-export function CloseMonthCard({ transactions, onCloseMonth, isClosed }: CloseMonthCardProps) {
-  const unverifiedCount = transactions.filter((t) => !t.verified).length;
-  const totalCount = transactions.length;
+export function CloseMonthCard({ transactions, onCloseMonth, onReopenMonth, isClosed }: CloseMonthCardProps) {
+  const unverifiedCount = transactions.filter((t) => !t.verified && !t.isForecasted).length;
+  const totalCount = transactions.filter((t) => !t.isForecasted).length;
   const allVerified = unverifiedCount === 0 && totalCount > 0;
 
   if (isClosed) {
@@ -22,16 +23,28 @@ export function CloseMonthCard({ transactions, onCloseMonth, isClosed }: CloseMo
         transition={{ duration: 0.4, delay: 0.4 }}
         className="rounded-2xl border border-success/30 bg-success/10 p-6"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/20">
-            <Lock className="h-5 w-5 text-success" />
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/20">
+              <Lock className="h-5 w-5 text-success" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-success">Month Closed</h3>
+              <p className="text-sm text-success/80">
+                All transactions verified and balanced.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-success">Month Closed</h3>
-            <p className="text-sm text-success/80">
-              All transactions verified and balanced.
-            </p>
-          </div>
+          
+          <Button
+            onClick={onReopenMonth}
+            variant="outline"
+            size="sm"
+            className="border-success/30 text-success hover:bg-success/10"
+          >
+            <Unlock className="mr-1.5 h-3.5 w-3.5" />
+            Reopen
+          </Button>
         </div>
       </motion.div>
     );
